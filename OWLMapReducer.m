@@ -1,6 +1,6 @@
 //
-//  OWLMapReducer.m
-//  
+//  OWLMapReducer.h
+//
 //
 //  Created by Sosnovshchenko Alexander on 8/7/14.
 //
@@ -8,40 +8,59 @@
 
 #import "OWLMapReducer.h"
 
-@implementation MapReducer
+@interface OWLMapReducer ()
+@property (nonatomic, strong) NSMutableArray *result;
+@property (nonatomic, strong) NSMutableDictionary *intermediate;
+@property (nonatomic, strong) dispatch_semaphore_t semaphoreMap;
+@property (nonatomic, strong) dispatch_semaphore_t semaphoreReduce;
+@end
 
-+ (NSArray *)sequence:(NSArray *)input
-                  map:(NSDictionary * (^)(id object))mapBlock
-               reduce:(id (^)(id key, id value))reduceBlock {
-    __block NSMutableDictionary *mapAggregationResults = [NSMutableDictionary dictionary];
+@implementation OWLMapReducer
+- (instancetype)init
+{
+    self = [super init];
+    if (self) {
+        _result = [NSMutableArray array];
+        _intermediate = [NSMutableDictionary dictionary];
+        _semaphoreMap = dispatch_semaphore_create(1);
+        _semaphoreReduce = dispatch_semaphore_create(1);
+    }
+    return self;
+}
+
+- (NSArray *)sequence:(NSArray *)input
+                  map:(void (^)(id object))mapBlock
+               reduce:(void (^)(id key, id value))reduceBlock {
     
     dispatch_queue_t queue = dispatch_get_global_queue (DISPATCH_QUEUE_PRIORITY_DEFAULT, 0);
-    dispatch_semaphore_t semaphoreMap = dispatch_semaphore_create(1);
     dispatch_apply(input.count, queue, ^(size_t index) {
         NSDictionary *item = input[index];
-        NSDictionary *mapEmitted = mapBlock(item);
-        id key = mapEmitted[@"key"];
-        id value = mapEmitted[@"value"];
-        dispatch_semaphore_wait(semaphoreMap, DISPATCH_TIME_FOREVER);
-        if (mapAggregationResults[key]) {
-            [mapAggregationResults[key] addObject:value];
-        } else {
-            [mapAggregationResults setObject:[NSMutableArray arrayWithObject:value] forKey:key];
-        }
-        dispatch_semaphore_signal(semaphoreMap);
+        mapBlock(item);
     });
     
-    __block NSMutableArray *reduceEmitted = [NSMutableArray array];
-    dispatch_semaphore_t semaphoreReduce = dispatch_semaphore_create(1);
-    dispatch_apply(mapAggregationResults.count, queue, ^(size_t index) {
-        id key = mapAggregationResults.allKeys[index];
-        id obj = mapAggregationResults[key];
-        dispatch_semaphore_wait(semaphoreReduce, DISPATCH_TIME_FOREVER);
-        [reduceEmitted addObject:reduceBlock(key, obj)];
-        dispatch_semaphore_signal(semaphoreReduce);
+    dispatch_apply(_intermediate.count, queue, ^(size_t index) {
+        id key = _intermediate.allKeys[index];
+        id obj = _intermediate[key];
+        reduceBlock(key, obj);
         
     });
-    return reduceEmitted;
+    return _result;
+}
+
+- (void)emitIntermediateKey:(id) key value:(id) value {
+    dispatch_semaphore_wait(_semaphoreMap, DISPATCH_TIME_FOREVER);
+    if (!_intermediate[key]) {
+        _intermediate[key] = [NSMutableArray arrayWithObject:value];
+    } else {
+        [_intermediate[key] addObject:value];
+    }
+    dispatch_semaphore_signal(_semaphoreMap);
+}
+
+- (void)emitValue:(id) value {
+    dispatch_semaphore_wait(_semaphoreReduce, DISPATCH_TIME_FOREVER);
+    [_result addObject:value];
+    dispatch_semaphore_signal(_semaphoreReduce);
 }
 
 @end

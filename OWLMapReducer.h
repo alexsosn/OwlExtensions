@@ -1,6 +1,6 @@
 //
 //  OWLMapReducer.h
-//  
+//
 //
 //  Created by Sosnovshchenko Alexander on 8/7/14.
 //
@@ -11,53 +11,50 @@
 @interface OWLMapReducer : NSObject
 
 /* Usage example
- NSArray *array =
-         [OWLMapReducer sequence:input
-          map:^NSDictionary *(id object) {
-                  NSInteger dateValue = 0;
-                  NSDate *date = [object valueForKey:@"date"];;
-                  switch (_periodType) {
-		  case BBPeriodTypeOneMonth: {
-			  dateValue = [date mk_week];
-			  break;
-		  }
-		  case BBPeriodTypeSixMonth: {
-			  NSInteger week = [date mk_week];
-			  dateValue = week - (week % 2);
-			  break;
-		  }
-		  case BBPeriodTypeYear: {
-			  dateValue = [date mk_year]*12 + [date mk_month];
-			  break;
-		  }
-		  default:
-			  break;
-		  }
 
-                  return @{@"key" : @{@"date":@(dateValue),
-                                      @"type":[object valueForKey:@"type"]},
-                           @"value" : [object valueForKey:@"value"]};
+ input is array of NSStrings :
+ 
+ NSArray *input = @[@"cat dog cow cat dog cow cat cat mat dog cow",
+                    @"cat dog cow cat dog cow cat dog cow cat dog cow",
+                    @"cat dog dog cow cat dog cattt cow cat dog cow cat"];
+
+ For example you want to count frequencies of words in total input array.
+ 
+ OWLMapReducer *mr = [OWLMapReducer new];
+
+ NSArray *tokensFrequencies =
+         [mr sequence:input
+          map:^(id object) {
+                  NSString *string = object;
+                  NSArray *tokensInString = [string componentsSeparatedByString:@" "];
+                  for (NSString *token in tokensInString) {
+                          [mr emitIntermediateKey:token value:@1];
+		  }
 	  }
-          reduce:^id (id key, id value) {
-                  NSArray *array = value;
-                  CGFloat acc = 0.;
-                  CGFloat len = 0.;
-                  for (NSString *value in array) {
-                          acc += value.floatValue;
-                          len += @(value.floatValue != 0.).floatValue;
+          reduce:^(id key, id value) {
+                  NSInteger acc = 0;
+                  for (NSNumber *num in value) {
+                          acc += num.integerValue;
 		  }
-                  CGFloat mean = 0.;
-                  if (len != 0.) {
-                          mean = acc/len;
-		  }
-                  return @{@"date":key[@"date"],
-                           @"type":key[@"type"],
-                           @"value":@(mean)};
+                  [mr emitValue:@{key:@(acc)}];
 	  }];
-*/
 
-+ (NSArray *)sequence:(NSArray *)input
-                  map:(NSDictionary * (^)(id object))mapBlock
-               reduce:(id (^)(id key, id value))reduceBlock;
+Result:
+tokensFrequencies == @[
+        @{@"cat"  : @12},
+        @{@"mat"  : @1},
+        @{@"cattt": @1},
+        @{@"cow"  : @10},
+        @{@"dog"  : @11}
+    ]
+ */
+
+- (NSArray *)sequence:(NSArray *)input
+                  map:(void (^)(id object))mapBlock
+               reduce:(void (^)(id key, id value))reduceBlock;
+
+- (void)emitIntermediateKey:(id) key value:(id) value;
+
+- (void)emitValue:(id) value;
 
 @end

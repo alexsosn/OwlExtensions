@@ -11,19 +11,17 @@
 @interface OWLMapReducer ()
 @property (nonatomic, strong) NSMutableArray *result;
 @property (nonatomic, strong) NSMutableDictionary *intermediate;
-@property (nonatomic, strong) dispatch_semaphore_t semaphoreMap;
-@property (nonatomic, strong) dispatch_semaphore_t semaphoreReduce;
+@property (nonatomic, strong) NSRecursiveLock *lock;
 @end
 
 @implementation OWLMapReducer
-- (instancetype)init
-{
+
+- (instancetype)init {
     self = [super init];
     if (self) {
         _result = [NSMutableArray array];
         _intermediate = [NSMutableDictionary dictionary];
-        _semaphoreMap = dispatch_semaphore_create(1);
-        _semaphoreReduce = dispatch_semaphore_create(1);
+        _lock = [NSRecursiveLock new];
     }
     return self;
 }
@@ -48,19 +46,19 @@
 }
 
 - (void)emitIntermediateKey:(id) key value:(id) value {
-    dispatch_semaphore_wait(_semaphoreMap, DISPATCH_TIME_FOREVER);
+    [_lock lock];
     if (!_intermediate[key]) {
         _intermediate[key] = [NSMutableArray arrayWithObject:value];
     } else {
         [_intermediate[key] addObject:value];
     }
-    dispatch_semaphore_signal(_semaphoreMap);
+    [_lock unlock];
 }
 
 - (void)emitValue:(id) value {
-    dispatch_semaphore_wait(_semaphoreReduce, DISPATCH_TIME_FOREVER);
+    [_lock lock];
     [_result addObject:value];
-    dispatch_semaphore_signal(_semaphoreReduce);
+    [_lock unlock];
 }
 
 @end

@@ -18,7 +18,7 @@
                     @"cat dog cow cat dog cow cat dog cow cat dog cow",
                     @"cat dog dog cow cat dog cattt cow cat dog cow cat"];
 
- For example you want to count frequencies of words in total input array.
+ For example you want to count frequencies of words in input array.
  
  OWLMapReducer *mr = [OWLMapReducer new];
 
